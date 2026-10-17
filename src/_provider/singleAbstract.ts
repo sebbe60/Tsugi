@@ -1,4 +1,5 @@
 import * as definitions from './definitions';
+import { confirmTrackingNotice } from '../utils/trackingNotice';
 
 import { ProgressRelease } from '../utils/progressRelease';
 import { predictionXhrGET, ProgressItem } from '../background/releaseProgressUtils';
@@ -30,6 +31,8 @@ export abstract class SingleAbstract {
   protected persistenceState?: ReturnType<SingleAbstract['getStateEl']>;
 
   protected undoState;
+
+  private historyEpisode: number | undefined;
 
   protected lastError;
 
@@ -404,6 +407,7 @@ export abstract class SingleAbstract {
       })
       .then(() => {
         this.persistenceState = this.getStateEl();
+        this.historyEpisode = this.getEpisode();
 
         return utils.getEntrySettings(this.type, this.getCacheKey(), this._getTags());
       })
@@ -416,6 +420,16 @@ export abstract class SingleAbstract {
 
   abstract _sync(): Promise<void>;
 
+  public getHistoryStartEpisode(): number | undefined {
+    if (
+      this.persistenceState?.status === definitions.status.Completed &&
+      this.getStatus() === definitions.status.Rewatching &&
+      this.getEpisode() === 1
+    )
+      return 0;
+    return this.historyEpisode ?? this.persistenceState?.episode;
+  }
+
   public async sync(): Promise<void> {
     this.logger.log('[SINGLE]', 'Sync', this.ids);
     this.lastError = null;
@@ -423,12 +437,47 @@ export abstract class SingleAbstract {
       await utils.setEntrySettings(this.type, this.getCacheKey(), this.options, this._getTags()),
     );
     this.fixDates();
+    const previousEpisode = this.historyEpisode ?? this.persistenceState?.episode;
+    const previousStatus = this.persistenceState?.status;
     return this._sync()
       .catch(e => {
         this.lastError = e;
         throw e;
       })
-      .then(() => {
+      .then(async () => {
+        const episode = this.getEpisode();
+        const fromEpisode =
+          previousStatus === definitions.status.Completed &&
+          this.getStatus() === definitions.status.Rewatching &&
+          episode === 1
+            ? 0
+            : previousEpisode;
+        this.historyEpisode = episode;
+        if (
+          api.type === 'webextension' &&
+          this.type === 'anime' &&
+          this.getSyncMethod() !== 'listSync' &&
+          fromEpisode !== undefined &&
+          episode > fromEpisode
+        ) {
+          try {
+            const result = await chrome.runtime.sendMessage({
+              name: 'watchHistory',
+              entry: {
+                mediaKey: `anime/${this.getCacheKey()}`,
+                title: this.getTitle(),
+                url: this.getUrl(),
+                image: this.getImage(),
+                fromEpisode,
+                toEpisode: episode,
+                rewatchCount: this.getRewatchCount() || 0,
+              },
+            });
+            if (result?.error) con.error('Episode synced, but local history could not be saved');
+          } catch (error) {
+            con.error('Could not save watch history', error);
+          }
+        }
         this.undoState = this.persistenceState;
         if (this.updateProgress) this.initProgress();
         this._onList = true;
@@ -467,10 +516,16 @@ export abstract class SingleAbstract {
 
   protected globalUpdateEvent;
 
+  public destroy() {
+    this.globalUpdateEvent?.off();
+  }
+
   protected registerEvent() {
     if (!this.globalUpdateEvent) {
-      this.globalUpdateEvent = emitter.on(`update.${this.getCacheKey()}`, data =>
-        this.updateEvent(data),
+      this.globalUpdateEvent = emitter.on(
+        `update.${this.getCacheKey()}`,
+        data => this.updateEvent(data),
+        { objectify: true },
       );
     }
   }
@@ -697,8 +752,10 @@ export abstract class SingleAbstract {
   public async lifeCycleHook(state: 'afterCheckSync' | 'beforeSync') {
     if (this.askCompleted) {
       if (
-        (state === 'afterCheckSync' && api.settings.get('askBefore')) ||
-        (state === 'beforeSync' && !api.settings.get('askBefore'))
+        (state === 'afterCheckSync' &&
+          this.getType() !== 'anime' &&
+          api.settings.get('askBefore')) ||
+        (state === 'beforeSync' && (this.getType() === 'anime' || !api.settings.get('askBefore')))
       ) {
         this.askCompleted = false;
         if (this.getStatus() === definitions.status.Rewatching) {
@@ -747,74 +804,84 @@ export abstract class SingleAbstract {
   }
 
   public async startWatchingMessage() {
-    return utils
-      .flashConfirm(api.storage.lang(`syncPage_flashConfirm_start_${this.getType()}`), 'add')
-      .then(res => {
-        if (res) {
-          this.setStatus(definitions.status.Watching);
-          this.setStartDate(returnYYYYMMDD());
-        }
-        return res;
-      });
+    const accepted = await confirmTrackingNotice(
+      {
+        heading: this.getType() === 'anime' ? 'Start watching?' : 'Start reading?',
+        title: this.getTitle(),
+        detail: 'Tsugi will track your progress and update your list as you watch or read.',
+      },
+      'Start tracking',
+    );
+    if (accepted) {
+      this.setStatus(definitions.status.Watching);
+      this.setStartDate(returnYYYYMMDD());
+    }
+    return accepted;
   }
 
   public async finishWatchingMessage(): Promise<boolean> {
-    const currentScore = this.getScoreCheckboxValue();
-
-    let checkHtml =
-      '<div><select id="finish_score" style="margin-top:5px; color:white; background-color:#4e4e4e; border: none;">';
-    this.getScoreCheckbox().forEach(el => {
-      checkHtml += `<option value="${el.value}" ${currentScore === el.value ? 'selected' : ''}>${
-        el.label
-      }</option>`;
-    });
-    checkHtml += '</select></div>';
-
-    return utils
-      .flashConfirm(api.storage.lang('syncPage_flashConfirm_complete') + checkHtml, 'complete')
-      .then(res => {
-        if (res) {
-          this.setStatus(definitions.status.Completed);
-          this.setFinishDate(returnYYYYMMDD());
-          if (!this.getStartDate()) {
-            this.setStartDate(returnYYYYMMDD());
-          }
-          const finishScore = Number(j.$('#finish_score').val());
-          if (finishScore > 0) {
-            this.logger.log(`finish_score: ${j.$('#finish_score :selected').val()}`);
-            this.handleScoreCheckbox(j.$('#finish_score :selected').val());
-          }
-        }
-
-        return res;
-      });
+    let score = String(this.getScoreCheckboxValue());
+    const accepted = await confirmTrackingNotice(
+      {
+        heading: 'Mark as completed?',
+        title: this.getTitle(),
+        detail: 'Your progress is ready to sync. Add a rating now, or leave it for later.',
+        rating: {
+          value: score,
+          options: this.getScoreCheckbox().map(option => ({
+            ...option,
+            value: String(option.value),
+          })),
+          onChange: value => {
+            score = value;
+          },
+        },
+      },
+      'Complete & sync',
+    );
+    if (accepted) {
+      this.setStatus(definitions.status.Completed);
+      this.setFinishDate(returnYYYYMMDD());
+      if (!this.getStartDate()) this.setStartDate(returnYYYYMMDD());
+      if (Number(score) > 0) this.handleScoreCheckbox(score);
+    } else if (
+      this.getStatus() !== definitions.status.Watching &&
+      this.getStatus() !== definitions.status.Rewatching
+    ) {
+      // Declining completion still keeps the observed progress in Watching.
+      this.setStatus(definitions.status.Watching);
+      if (!this.getStartDate()) this.setStartDate(returnYYYYMMDD());
+    }
+    return accepted;
   }
 
   public async startRewatchingMessage(): Promise<boolean> {
-    return utils
-      .flashConfirm(
-        api.storage.lang(`syncPage_flashConfirm_rewatch_start_${this.getType()}`),
-        'add',
-      )
-      .then(res => {
-        if (res) this.setStatus(definitions.status.Rewatching);
-        return res;
-      });
+    const accepted = await confirmTrackingNotice(
+      {
+        heading: this.getType() === 'anime' ? 'Watch it again?' : 'Read it again?',
+        title: this.getTitle(),
+        detail: 'Start a new run while keeping your previous completion.',
+      },
+      'Start tracking again',
+    );
+    if (accepted) this.setStatus(definitions.status.Rewatching);
+    return accepted;
   }
 
   public async finishRewatchingMessage(): Promise<boolean> {
-    return utils
-      .flashConfirm(
-        api.storage.lang(`syncPage_flashConfirm_rewatch_finish_${this.getType()}`),
-        'complete',
-      )
-      .then(res => {
-        if (res) {
-          this.setStatus(definitions.status.Completed);
-          this.increaseRewatchCount();
-        }
-        return res;
-      });
+    const accepted = await confirmTrackingNotice(
+      {
+        heading: 'Finish this rewatch?',
+        title: this.getTitle(),
+        detail: 'Sync your progress and add this run to your rewatch count.',
+      },
+      'Complete & sync',
+    );
+    if (accepted) {
+      this.setStatus(definitions.status.Completed);
+      this.increaseRewatchCount();
+    }
+    return accepted;
   }
 
   public getScoreCheckbox() {

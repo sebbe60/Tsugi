@@ -1,9 +1,12 @@
+import { showTrackingNotice } from './trackingNotice';
+
 const logger = con.m('Player');
 
 export type PlayerTime = {
   current: number;
   duration: number;
   paused: boolean;
+  ended?: boolean;
 };
 
 export class PlayerSingleton {
@@ -32,8 +35,34 @@ export class PlayerSingleton {
     // Singleton
   }
 
+  private trackingTimer: ReturnType<typeof setInterval> | undefined;
+
   public startTracking() {
-    setInterval(() => {
+    if (this.trackingTimer) return this;
+    document.addEventListener(
+      'ended',
+      event => {
+        const player = event.target;
+        if (
+          !(player instanceof HTMLVideoElement) ||
+          !Number.isFinite(player.duration) ||
+          player.duration <= 60
+        )
+          return;
+        this.currentPlayer = player;
+        this.notifyListeners(
+          {
+            current: player.currentTime,
+            duration: player.duration,
+            paused: player.paused,
+            ended: true,
+          },
+          player,
+        );
+      },
+      true,
+    );
+    this.trackingTimer = setInterval(() => {
       const players = document.getElementsByTagName('video');
       for (let i = 0; i < players.length; i++) {
         const player: HTMLVideoElement = players[i];
@@ -41,11 +70,12 @@ export class PlayerSingleton {
         const current = player.currentTime;
         const { paused } = player;
 
-        if (duration && duration > 60) {
+        if (Number.isFinite(duration) && duration > 60) {
           const item = {
             current,
             duration,
             paused,
+            ended: player.ended,
           };
           logger.debug(window.location.href, item);
           this.currentPlayer = player;
@@ -202,42 +232,19 @@ export function fullscreenNotification(text: string) {
     document.msFullscreenElement;
 
   if (fullscreenElement) {
-    // eslint-disable-next-line jquery-unsafe-malsync/no-xss-jquery
-    const flashmEl = j
-      .$(
-        j.html(`
-        <div style="
-          all: initial;
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          color: white;
-          display: none;
-          z-index: 20000;
-        ">
-          <div style="
-            background: rgba(50, 50, 50, 0.6);
-            color: white;
-            padding: 10px 15px 10px;
-            margin-left: auto;
-            margin-right: auto;
-            max-width: 60%;
-            display: table;
-            font-family: Helvetica,Arial,sans-serif;
-            text-align: center;
-          ">${text}</div>
-        </div>
-        `),
-      )
-      .appendTo(j.$(fullscreenElement));
-
-    flashmEl
-      .slideDown(400)
-      .delay(2000)
-      .slideUp(400, () => {
-        flashmEl.remove();
-      });
+    const copy = document.createElement('div');
+    // Legacy callers supply escaped HTML; render only text in the new notice.
+    copy.innerHTML = j.html(text.replace(/<br\s*\/?\s*>/gi, '\n'));
+    const [title, ...details] = (copy.textContent || '').split('\n');
+    showTrackingNotice(
+      {
+        kind: 'success',
+        heading: 'Progress synced',
+        title,
+        detail: details.join(' · '),
+      },
+      { fullscreen: true },
+    );
   }
 }
 
@@ -269,7 +276,6 @@ export function shortcutListener(callback) {
     document.addEventListener('keyup', keyEvent);
 
     function keyEvent(e) {
-
       e = e || event;
       if (e.repeat) return;
       const key = e.which || e.keyCode;
@@ -280,7 +286,8 @@ export function shortcutListener(callback) {
         if (checkShortcut(option)) {
           if (
             e.target instanceof Node &&
-            (/textarea|input|select/i.test(e.target.nodeName) || (e.target instanceof Element && (e.target.shadowRoot || e.target.isContentEditable)))
+            (/textarea|input|select/i.test(e.target.nodeName) ||
+              (e.target instanceof Element && (e.target.shadowRoot || e.target.isContentEditable)))
           ) {
             con.info('Input field. Shortcut suppressed.');
           } else {
@@ -294,11 +301,11 @@ export function shortcutListener(callback) {
         callback({ shortcut: option });
         return false;
       }
-    };
+    }
 
     window.addEventListener(
       'focus',
-      function() {
+      function () {
         keyMap = {};
       },
       false,
@@ -308,12 +315,13 @@ export function shortcutListener(callback) {
       const keys = api.settings.get(option);
       if (!keys.length) return false;
       let shortcutTrue = true;
-      keys.forEach(function(sKey) {
+      keys.forEach(function (sKey) {
         if (!keyMap[sKey]) {
           shortcutTrue = false;
         }
       });
-      if (shortcutTrue && Object.values(keyMap).filter(c => c).length !== keys.length) shortcutTrue = false;
+      if (shortcutTrue && Object.values(keyMap).filter(c => c).length !== keys.length)
+        shortcutTrue = false;
       return shortcutTrue;
     }
   }

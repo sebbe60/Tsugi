@@ -116,3 +116,24 @@ button {
 p {
   margin-top: 0;
 }
+
+html[mode='window'] {
+  #minimalApp {
+    max-width: none;
+    width: 100%;
+  }
+
+  .content {
+    width: 100%;
+    max-width: 1600px;
+    margin-inline: auto;
+    padding: 32px clamp(20px, 3vw, 56px) 56px;
+    overflow: visible;
+  }
+
+  @media (max-width: 899px) {
+    .content {
+      padding: 20px 16px 32px;
+    }
+  }
+}

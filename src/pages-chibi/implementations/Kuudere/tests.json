@@ -3,6 +3,17 @@
   "url": "https://reanime.to",
   "testCases": [
     {
+      "url": "https://reanime.to/watch/mushoku-tensei-jobless-reincarnation-season-3-8cvt7u?ep=14&lang=sub&server=HD-2",
+      "expected": {
+        "sync": true,
+        "title": "Mushoku Tensei: Jobless Reincarnation Season 3",
+        "identifier": "8cvt7u",
+        "episode": 14,
+        "overviewUrl": "https://reanime.to/anime/mushoku-tensei-jobless-reincarnation-season-3-8cvt7u",
+        "uiSelector": false
+      }
+    },
+    {
       "url": "https://reanime.to/watch/that-time-i-got-reincarnated-as-a-slime-season-4-ah9gxe?ep=1&lang=dub",
       "expected": {
         "sync": true,

@@ -3,6 +3,11 @@ import { getUrlObj, setUrlObj } from './utils/state';
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/library/:section(watching|upcoming|planned|history|discover|sites)',
+    name: 'Library',
+    component: () => import('./views/library.vue'),
+  },
+  {
     path: '/',
     redirect: () => {
       const urlObj = getUrlObj();
@@ -14,7 +19,9 @@ const routes: RouteRecordRaw[] = [
           return urlObj.url;
         }
       }
-      return '/book/anime/1';
+      return document.documentElement.getAttribute('mode') === 'window'
+        ? '/library/watching'
+        : '/book/anime/1';
     },
   },
   {

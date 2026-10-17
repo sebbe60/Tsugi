@@ -1,0 +1,27 @@
+{
+  "title": "AniCult",
+  "url": "https://anicult.vercel.app",
+  "testCases": [
+    {
+      "url": "https://anicult.vercel.app/watch/178789/14",
+      "expected": {
+        "sync": true,
+        "title": "Mushoku Tensei: Jobless Reincarnation Season 3",
+        "identifier": "178789",
+        "episode": 14,
+        "overviewUrl": "https://anicult.vercel.app/anime/178789"
+      }
+    },
+    {
+      "url": "https://anicult.vercel.app/anime/21",
+      "expected": {
+        "sync": false,
+        "title": "ONE PIECE",
+        "identifier": "21",
+        "image": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21-ELSYx3yMPcKM.jpg",
+        "uiSelector": true
+      }
+    }
+  ],
+  "unreliable": true
+}

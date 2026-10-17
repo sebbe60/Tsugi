@@ -8,6 +8,7 @@ const pageUrls = require('./utils/pageUrls');
 const packageJson = require('../package.json');
 const resourcesJson = require('./resources');
 const httpPermissionsJson = require('./httpPermissions.json');
+const tsugiPermissions = require('./tsugiPermissions.json');
 const i18n = require('./utils/i18n');
 const pagesUtils = require('./utils/pages');
 const pages = pagesUtils.pages();
@@ -121,6 +122,14 @@ content_scripts.push({
   run_at: 'document_start',
 });
 
+content_scripts.push({
+  matches: ['*://*/*'],
+  js: ['content/fullscreen-cursor.js'],
+  all_frames: true,
+  match_about_blank: true,
+  run_at: 'document_idle',
+});
+
 const generateManifest = () => {
   const mani = {
     manifest_version: 3,
@@ -131,7 +140,7 @@ const generateManifest = () => {
     default_locale: 'en',
     browser_specific_settings: {
       gecko: {
-        id: '{ceb9801e-aa0c-4bc6-a6b0-9494f3164cc7}',
+        id: 'tsugi@local.invalid',
       },
     },
     background: appTarget === 'firefox' ?
@@ -144,7 +153,7 @@ const generateManifest = () => {
       extension_pages: "script-src 'self'; object-src 'self';",
     },
     action: {
-      default_popup: 'popup.html',
+      default_title: 'Open Tsugi',
       default_icon: {
         '16': 'icons/icon16.png',
         '32': 'icons/icon32.png',
@@ -202,11 +211,12 @@ const generateManifest = () => {
       'alarms',
       'notifications',
       'declarativeNetRequestWithHostAccess',
+      ...(appTarget === 'firefox' ? ['scripting'] : []),
     ],
-    "optional_permissions": [
+    "optional_permissions": appTarget === 'firefox' ? [] : [
       "scripting",
     ],
-    host_permissions: httpPermissionsJson,
+    host_permissions: appTarget === 'firefox' ? [...new Set([...httpPermissionsJson, ...tsugiPermissions])] : httpPermissionsJson,
     "optional_host_permissions": [
       "*://*/*",
     ],

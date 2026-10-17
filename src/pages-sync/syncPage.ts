@@ -13,13 +13,15 @@ import { status } from '../_provider/definitions';
 import { getTrackingMode, TrackingModeType } from './trackingMode';
 import type { ProgressElement, TrackingModeInterface } from './trackingMode/TrackingModeInterface';
 import {
-  resumeMessageElement,
   trackingBarElement,
   trackingErrorElement,
   trackingNoteElement,
   trackingSyncButtonElement,
 } from './messageElements';
 import { isFirefox } from '../utils/general';
+import { PlaybackSession } from '../utils/playbackSession';
+import { syncWithRecovery, PendingWatchSyncError } from '../utils/recoverableSync';
+import { dismissTrackingNotice, showTrackingNotice } from '../utils/trackingNotice';
 
 const extensionId = isFirefox()
   ? '{57081fef-67b4-482f-bcb0-69296e63ec4f}'
@@ -37,6 +39,10 @@ export class SyncPage {
   singleObj;
 
   trackingModeInstance: TrackingModeInterface | undefined;
+
+  private playbackSession: PlaybackSession | undefined;
+
+  private manualSync: (() => void) | undefined;
 
   public novel = false;
 
@@ -67,6 +73,10 @@ export class SyncPage {
   }
 
   init() {
+    // Clear a legacy resume panel left in an open tab by an extension reload.
+    j.$(
+      '#flashinfo-div .type-resume, #flash-div-bottom .type-resume, #flash-div-top .type-resume, .flash.type-add, .flash.type-complete, #tsugi-tracking-prompt, #tsugi-fullscreen-notice',
+    ).remove();
     const This = this;
     j.$(document).ready(function () {
       initFloatButton(This, This.floatClick);
@@ -142,7 +152,13 @@ export class SyncPage {
       this.trackingModeInstance.stop();
       this.trackingModeInstance = undefined;
     }
-    $('#flashinfo-div, #flash-div-bottom, #flash-div-top, #malp').remove();
+    this.playbackSession?.stop();
+    this.playbackSession = undefined;
+    this.manualSync = undefined;
+    dismissTrackingNotice();
+    $(
+      '#flashinfo-div, #flash-div-bottom, #flash-div-top, #malp, #tsugi-tracking-controls',
+    ).remove();
     clearInterval(this.imageFallbackInterval);
   }
 
@@ -316,8 +332,34 @@ export class SyncPage {
           return;
         }
 
-        if (await this.singleObj.checkSync(state.episode, state.volume)) {
-          await this.singleObj.lifeCycleHook('afterCheckSync');
+        if (
+          api.type === 'webextension' &&
+          this.page.type === 'anime' &&
+          typeof state.episode === 'number' &&
+          state.episode > 0
+        ) {
+          this.playbackSession?.stop();
+          this.playbackSession = new PlaybackSession(
+            {
+              mediaKey: `anime/${this.singleObj.getCacheKey()}`,
+              title: this.singleObj.getTitle(),
+              url: this.singleObj.getUrl(),
+              image: this.singleObj.getImage(),
+              episode: state.episode,
+              rewatchCount: this.singleObj.getRewatchCount() || 0,
+              watchUrl: this.url,
+            },
+            () => {
+              if (this.manualSync) this.manualSync();
+              else chrome.runtime.sendMessage({ name: 'retryWatchSyncs' }).catch(() => {});
+            },
+          );
+        }
+        const trackingSingle = this.singleObj;
+        if (await trackingSingle.checkSync(state.episode, state.volume)) {
+          if (this.singleObj !== trackingSingle || this.url !== curUrl) return;
+          await trackingSingle.lifeCycleHook('afterCheckSync');
+          if (this.singleObj !== trackingSingle || this.url !== curUrl) return;
           if (!(this.strongVolumes && !state.episode)) this.singleObj.setEpisode(state.episode);
           this.singleObj.setStreamingUrl(this.page.sync.getOverviewUrl(this.url));
 
@@ -402,7 +444,26 @@ export class SyncPage {
 
     const message = messageArray.map(el => el.outerHTML).join('');
 
-    const flashEl = utils.flashm(message, tracking.flashOptions());
+    const useTsugiNotice =
+      this.page.type === 'anime' && tracking instanceof getTrackingMode('video');
+    let flashEl: JQuery<HTMLElement>;
+    if (useTsugiNotice) {
+      // Extension reloads leave old injected DOM behind in already-open tabs.
+      j.$(
+        '#flashinfo-div .type-update, #flash-div-bottom .type-update, #flash-div-top .type-update, #tsugi-tracking-controls',
+      ).remove();
+      // Keep the manual-sync/shortcut bridge without creating the legacy popup.
+      const controls = document.createElement('div');
+      controls.id = 'tsugi-tracking-controls';
+      controls.className = 'flash type-update';
+      controls.hidden = true;
+      controls.setAttribute('aria-hidden', 'true');
+      controls.style.setProperty('display', 'none', 'important');
+      flashEl = j.$(controls).html(j.html(message));
+      document.documentElement.appendChild(controls);
+    } else {
+      flashEl = utils.flashm(message, tracking.flashOptions());
+    }
 
     if ('addListener' in tracking) {
       let saveDebounce = true;
@@ -411,11 +472,34 @@ export class SyncPage {
       const lastProgress: ProgressElement | null = localItem
         ? (JSON.parse(localItem) as ProgressElement)
         : null;
-      let resumed = !lastProgress;
+      const explicitResume = new URL(this.url).searchParams.has('tsugi_resume');
+      let resumed = !lastProgress || explicitResume;
+      let resumeOffered = false;
+      let dismissResume: (() => void) | undefined;
 
-      let saveBlocked = Boolean(lastProgress);
+      let saveBlocked = Boolean(lastProgress) && !explicitResume;
 
+      let trackingAnnounced = false;
       tracking.addListener(progress => {
+        if (!trackingAnnounced && progress.total > 0 && Number.isFinite(progress.progress)) {
+          trackingAnnounced = true;
+          showTrackingNotice({
+            kind: 'tracking',
+            heading: `Tracking ${utils.episode(this.page.type).replace(/:$/, '').toLowerCase()} ${state.episode}`,
+            title: this.singleObj.getTitle(),
+            detail: progress.progressTrigger
+              ? `Syncs automatically at ${Math.round(progress.progressTrigger * 100)}% watched`
+              : 'Syncs automatically as you watch',
+            actions: [
+              {
+                label: 'Sync now',
+                run: () => {
+                  flashEl.find('.sync').trigger('click');
+                },
+              },
+            ],
+          });
+        }
         let finalPercent = Number(progress.progress);
         if (progress.progressTrigger && Number(progress.progressTrigger)) {
           finalPercent = Math.min(finalPercent / Number(progress.progressTrigger), 1);
@@ -448,10 +532,8 @@ export class SyncPage {
         // Save progress
         if (saveBlocked && lastProgress && progress.progress >= lastProgress.progress) {
           saveBlocked = false;
-          if (!resumed && j.$('#MALSyncResume').length) {
-            resumed = true;
-            j.$('#MALSyncResume').parentsUntil('.flash').remove();
-          }
+          resumed = true;
+          dismissResume?.();
         }
 
         if (
@@ -462,7 +544,7 @@ export class SyncPage {
           lastProgress &&
           tracking.canResume(lastProgress)
         ) {
-          if (j.$('#MALSyncResume').length) {
+          if (resumeOffered) {
             return;
           }
 
@@ -473,27 +555,26 @@ export class SyncPage {
           }
 
           const resumeTimeString = tracking.getResumeText(lastProgress) || '';
-          const resumeMessageDiv = resumeMessageElement(
-            api.storage.lang('syncPage_flashm_resumeMsg', [resumeTimeString]),
-          );
-
-          const resumeMsg = utils.flashm(resumeMessageDiv.innerHTML, {
-            permanent: true,
-            error: false,
-            type: 'resume',
-            minimized: false,
-            position: 'top',
-          });
-
-          resumeMsg.find('.sync').on('click', () => {
-            tracking.resumeTo(lastProgress);
+          resumeOffered = true;
+          const dismiss = () => {
             resumed = true;
-            resumeMsg.remove();
-          });
-
-          resumeMsg.find('.resumeClose').on('click', function () {
-            resumed = true;
-            resumeMsg.remove();
+          };
+          dismissResume = showTrackingNotice({
+            kind: 'resume',
+            heading: 'Pick up where you left off',
+            title: this.singleObj.getTitle(),
+            detail: `Your saved position is ${resumeTimeString}`,
+            onDismiss: dismiss,
+            actions: [
+              {
+                label: `Resume at ${resumeTimeString}`,
+                run: () => {
+                  tracking.resumeTo(lastProgress);
+                  resumed = true;
+                },
+              },
+              { label: 'Dismiss', run: dismiss },
+            ],
           });
           return;
         }
@@ -518,18 +599,38 @@ export class SyncPage {
           flashEl.removeClass('open');
         } else {
           errorContainer.html(j.html(errorEl.outerHTML));
-          flashEl.addClass('open');
+          if (useTsugiNotice) {
+            showTrackingNotice({
+              kind: 'error',
+              heading: 'Player not detected',
+              title: this.singleObj.getTitle(),
+              detail:
+                errorEl.textContent?.trim() || 'Automatic tracking is unavailable for this player.',
+              actions: [
+                {
+                  label: 'Sync now',
+                  run: () => {
+                    flashEl.find('.sync').trigger('click');
+                  },
+                },
+              ],
+            });
+          } else {
+            flashEl.addClass('open');
+          }
         }
       });
     }
 
     const clickPromise = new Promise<void>(resolve => {
+      this.manualSync = resolve;
       flashEl.find('.sync').on('click', () => resolve());
     });
 
     await Promise.race([clickPromise, tracking.waitForTrackingAction()]);
 
     tracking.stop();
+    this.manualSync = undefined;
 
     flashEl.remove();
 
@@ -545,7 +646,9 @@ export class SyncPage {
   }
 
   protected async sync(state) {
-    await this.singleObj.lifeCycleHook('beforeSync');
+    const trackingSingle = this.singleObj;
+    await trackingSingle.lifeCycleHook('beforeSync');
+    if (this.singleObj !== trackingSingle || this.curState !== state) return;
     this.singleObj.setResumeWatching(this.url, state.episode);
     if (typeof this.page.sync.nextEpUrl !== 'undefined') {
       const continueWatching = this.page.sync.nextEpUrl(this.url);
@@ -574,15 +677,19 @@ export class SyncPage {
   }
 
   private syncHandling(hoverInfo = false, undo = false) {
+    const syncSingle = this.singleObj;
     let p;
     if (undo) {
       p = this.singleObj.undo();
     } else {
-      p = this.singleObj.sync();
+      if (hoverInfo) this.playbackSession?.setState('syncing');
+      p = hoverInfo ? syncWithRecovery(this.singleObj) : this.singleObj.sync();
     }
 
     return p
       .then(() => {
+        if (this.singleObj !== syncSingle) return;
+        if (hoverInfo) this.playbackSession?.setState('synced');
         let message = this.singleObj.getTitle();
         let split = '<br>';
         let totalVol = this.singleObj.getTotalVolumes();
@@ -662,29 +769,28 @@ export class SyncPage {
 
           this.fullNotification(message);
 
-          message += `
-            <br>
-            <button class="undoButton" style="background-color: transparent; border: none; color: rgb(255,64,129);margin-top: 10px;cursor: pointer;">
-              ${api.storage.lang('syncPage_flashm_sync_undefined_undo')}
-            </button>
-            <button class="wrongButton" style="background-color: transparent; border: none; color: rgb(255,64,129);margin-top: 10px;cursor: pointer;">
-              ${api.storage.lang('syncPage_flashm_sync_undefined_wrong')}
-            </button>`;
-
-          const flashmItem = utils.flashm(message, {
-            hoverInfo: true,
-            type: 'update',
-          });
-          flashmItem.find('.undoButton').on('click', e => {
-            const fl = e.target.closest('.flash');
-            if (fl) fl.remove();
-            this.syncHandling(false, true);
-          });
-          flashmItem.find('.wrongButton').on('click', e => {
-            this.openCorrectionUi();
-            const fl = e.target.closest('.flash');
-            if (fl) fl.remove();
-            this.syncHandling(false, true);
+          showTrackingNotice({
+            kind: 'success',
+            heading: diffState.episode
+              ? `${utils.episode(this.page.type).replace(/:$/, '')} ${diffState.episode} synced`
+              : 'List updated',
+            title: this.singleObj.getTitle(),
+            detail: `Saved to ${providerTemplates(this.page.type, this.singleObj.getUrl()).shortName}`,
+            actions: [
+              {
+                label: api.storage.lang('syncPage_flashm_sync_undefined_undo'),
+                run: () => {
+                  this.syncHandling(false, true);
+                },
+              },
+              {
+                label: api.storage.lang('syncPage_flashm_sync_undefined_wrong'),
+                run: () => {
+                  this.openCorrectionUi();
+                  this.syncHandling(false, true);
+                },
+              },
+            ],
           });
         } else {
           utils.flashm(message);
@@ -693,7 +799,43 @@ export class SyncPage {
         this.fillUI();
       })
       .catch(e => {
+        if (this.singleObj !== syncSingle) return;
+        if (e instanceof PendingWatchSyncError) {
+          this.playbackSession?.setState('pending');
+          showTrackingNotice({
+            kind: 'pending',
+            heading: 'Saved here · waiting to sync',
+            title: this.singleObj.getTitle(),
+            detail:
+              'Your episode is saved locally. Tsugi will retry automatically, even if you close this tab.',
+            actions: [
+              {
+                label: 'Retry now',
+                run: () => {
+                  chrome.runtime.sendMessage({ name: 'retryWatchSyncs' }).catch(() => {});
+                },
+              },
+            ],
+          });
+          return;
+        }
         this.singleObj.flashmError(e);
+        if (hoverInfo) {
+          showTrackingNotice({
+            kind: 'error',
+            heading: 'Episode not synced',
+            title: this.singleObj.getTitle(),
+            detail: 'The update failed. Check the service or your login, then try again.',
+            actions: [
+              {
+                label: 'Try again',
+                run: () => {
+                  this.syncHandling(true);
+                },
+              },
+            ],
+          });
+        }
         throw e;
       });
   }

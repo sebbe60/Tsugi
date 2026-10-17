@@ -1,7 +1,7 @@
 export interface xhrI {
   name: 'xhr';
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  url: string | { url: string; data?: any; headers?: any };
+  url: string | { url: string; data?: any; headers?: any; retryRateLimit?: boolean };
 }
 export interface xhrResponseI {
   finalUrl: string;
@@ -9,9 +9,14 @@ export interface xhrResponseI {
   status: number;
 }
 
+export interface trackingHealthMessage {
+  name: 'trackingHealth';
+  item: import('../utils/player').PlayerTime;
+}
+
 export interface videoTime {
   name: 'videoTime';
-  item: { current: number; duration: number; paused: boolean };
+  item: { current: number; duration: number; paused: boolean; ended?: boolean };
 }
 
 export interface content {
@@ -36,9 +41,7 @@ export interface iframeDone {
 
 export interface minimalWindow {
   name: 'minimalWindow';
-  height: number;
-  width: number;
-  left: number;
+  url?: string;
 }
 
 export interface notification {
@@ -62,7 +65,21 @@ export interface databaseMessage {
   };
 }
 
+export interface watchHistoryMessage {
+  name: 'watchHistory';
+  entry: import('../utils/watchHistory').WatchProgress;
+}
+
+export type watchActivityMessage =
+  | { name: 'playbackCheckpoint'; entry: import('../utils/watchActivity').PlaybackCheckpoint }
+  | { name: 'prepareWatchSync'; intent: import('../utils/watchActivity').SyncIntent }
+  | { name: 'completeWatchSync' | 'failWatchSync' | 'cancelWatchSync'; id: string }
+  | { name: 'retryWatchSyncs' };
+
 export type sendMessageI =
+  | watchActivityMessage
+  | trackingHealthMessage
+  | watchHistoryMessage
   | xhrI
   | iframeDone
   | videoTime

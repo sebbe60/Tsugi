@@ -63,7 +63,7 @@ async function main() {
   alive.start();
 
   try {
-    setBadgeText('⌛');
+    setBadgeText('');
     await api.settings.init();
     if (!api.settings.get('epPredictions')) {
       throw 'epPredictions disabled';

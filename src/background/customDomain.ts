@@ -1,5 +1,6 @@
 import { ChibiListRepository } from '../pages-chibi/loader/ChibiListRepository';
 import { isIframeUrl } from '../utils/manifest';
+import { reconnectTrackingTabs } from './reconnectTracking';
 
 const logger = con.m('Custom Domain');
 
@@ -58,6 +59,7 @@ async function registerScripts() {
 
   const scripts = await chrome.scripting.getRegisteredContentScripts();
   logger.log(scripts);
+  await reconnectTrackingTabs(scripts);
 }
 
 async function registerScript(domainConfig: domainType) {

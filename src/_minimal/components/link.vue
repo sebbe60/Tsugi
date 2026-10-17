@@ -17,7 +17,11 @@ const props = defineProps({
   },
 });
 
-const absolute = computed(() =>
-  utils.absoluteLink(router.resolve(props.to).href, 'https://malsync.moe/pwa'),
-);
+const absolute = computed(() => {
+  const href = router.resolve(props.to).href;
+  if (api.type === 'webextension' && typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
+    return new URL(href, chrome.runtime.getURL('window.html')).href;
+  }
+  return utils.absoluteLink(href, 'https://malsync.moe/pwa');
+});
 </script>

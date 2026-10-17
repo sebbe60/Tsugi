@@ -1,3 +1,5 @@
+import { initWatchRecovery } from '../background/watchRecovery';
+import { openTsugiTab } from '../background/desktopTab';
 import { initDatabase } from '../background/database';
 import { listSyncInit } from '../background/listSync';
 import { initProgressScheduler } from '../background/releaseProgress';
@@ -55,6 +57,12 @@ try {
   con.error(e);
 }
 
+initWatchRecovery();
+
+chrome.action.onClicked.addListener(tab => {
+  openTsugiTab(tab).catch(error => con.error('Could not open Tsugi', error));
+});
+
 // Notification actions
 chrome.notifications.onClicked.addListener(function (notificationId) {
   chrome.tabs.create({ url: notificationId });
@@ -80,5 +88,6 @@ chrome.runtime.onInstalled.addListener(async function (details) {
   } else if (details.reason === 'update') {
     upgradewWizzards(details.previousVersion).finally(() => cleanupCustomDomains());
   }
-  chrome.alarms.clearAll();
+  await chrome.alarms.clearAll();
+  chrome.alarms.create('tsugiWatchRecovery', { periodInMinutes: 1 });
 });

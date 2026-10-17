@@ -1,3 +1,37 @@
+# Tsugi
+
+<img src="branding/tsugi/tsugi-128.png" width="96" alt="Tsugi fox mask" />
+
+A personal Firefox extension built on [MALSync](https://github.com/MALSync/MALSync), with a full-tab anime library, watch tracking, episode history and discovery.
+
+Current version: **0.12.25**.
+
+- Watching, Upcoming, released Planned, History, Discover and My sites.
+- A configurable rotating header with unfinished-episode resume links and three layouts.
+- Release schedules with timezone and 24-hour clock settings.
+- Local playback checkpoints, failed-sync recovery and Tsugi player notices.
+
+## Local Firefox build
+
+Requires Node.js 24+ and npm 11+.
+
+```sh
+npm ci
+APP_TARGET=firefox npm run build:webextension
+```
+
+In Firefox, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select `dist/webextension/manifest.json`. Temporary add-ons need loading again after Firefox restarts.
+
+Run Tsugi's focused regression tests with `node --test test/*.test.cjs`.
+
+Watch history, playback checkpoints and discovery preferences live in the browser profile; pushing this repository does not back them up. Connected list services store the progress successfully synced to them.
+
+## Credits and license
+
+Tsugi retains MALSync's Git history, original attribution and **GPL-3.0-only** license. See [LICENSE](LICENSE). The inherited upstream documentation follows below.
+
+---
+
 [![Discord](https://img.shields.io/discord/358599430502481920.svg?style=flat-square&logo=discord&label=Chat%20%2F%20Support&colorB=7289DA)](https://discord.com/invite/cTH4yaw)
 [![Issues](https://img.shields.io/github/issues/MALSync/MALSync.svg?style=flat-square&logo=github&logoColor=white)](https://github.com/MALSync/MALSync/issues)
 [![CodeFactor](https://www.codefactor.io/repository/github/MALSync/MALSync/badge)](https://www.codefactor.io/repository/github/MALSync/MALSync)

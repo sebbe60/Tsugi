@@ -1,10 +1,10 @@
 {
-  "name": "MALSync",
-  "productName": "MAL-Sync",
+  "name": "tsugi",
+  "productName": "Tsugi",
   "author": "lolamtisch@gmail.com",
   "license": "GPL-3.0-only",
-  "repository": "github:MALSync/MALSync",
-  "version": "0.12.5",
+  "repository": "github:sebbe60/Tsugi",
+  "version": "0.12.25",
   "description": "Integrates MyAnimeList/AniList/Kitsu/Simkl/Shikimori/MangaBaka into various sites, with auto episode tracking.",
   "engines": {
     "npm": ">=11.0.0",

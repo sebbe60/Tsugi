@@ -7,7 +7,7 @@ api.settings.init().then(() => {
   try {
     const mode = $('html').attr('mode');
     con.log('Mode', mode);
-    if (mode === 'popup' && api.settings.get('minimalWindow')) {
+    if (mode === 'popup') {
       openMinimal(function (response) {
         $('html').css('height', '0');
         if (!isFirefox()) {
@@ -21,6 +21,7 @@ api.settings.init().then(() => {
   }
 
   router().afterEach((to, from, failure) => {
+    if (window.parent === window || failure) return;
     chrome.runtime.sendMessage({
       name: 'content',
       item: { action: 'pwaPath', data: { path: to.fullPath } },
@@ -28,6 +29,9 @@ api.settings.init().then(() => {
   });
 
   const minimalObj = new Minimal($('html'));
+
+  // Desktop tabs receive their initial route from the background launcher.
+  if ($('html').attr('mode') === 'window') return;
 
   checkFill(minimalObj, true);
 
@@ -46,6 +50,7 @@ function checkFill(minimalObj: Minimal, home = false) {
     con.m('tabs').log(tabs);
     tabs.forEach(el => {
       chrome.tabs.sendMessage(el.id!, { action: 'TabMalUrl' }, response => {
+        if (chrome.runtime.lastError) return;
         if (response && response.url) {
           con.log('Fill', response);
           minimalObj.fill(response, home);

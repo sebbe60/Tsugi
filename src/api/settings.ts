@@ -30,6 +30,9 @@ export const settingsObj = {
     mangaCompletionPercentage: 90,
 
     theme: 'auto',
+    tsugiTimeZone: 'Europe/Stockholm',
+    tsugiClock24: true,
+    tsugiFullscreenCursor: true,
     themeSidebars: true,
     themeColor: '#000000',
     themeOpacity: 100,
@@ -40,7 +43,7 @@ export const settingsObj = {
     miniMALonMal: false,
     floatButtonStealth: false,
     minimizeBigPopup: false,
-    floatButtonCorrection: true,
+    floatButtonCorrection: false,
     floatButtonHide: false,
     autoCloseMinimal: false,
     outWay: true,

@@ -126,30 +126,26 @@ export class PermissionsHandler {
   }
 
   public async requestPermissions() {
-    const permissions = {
-      origins: this.required.match,
-    };
-
-    if (this.required.api) {
-      permissions.origins = permissions.origins.concat(this.required.api);
-    }
-
-    if (this.player.match) {
-      permissions.origins = permissions.origins.concat(this.player.match);
-    }
-
-    if (this.pages) {
-      permissions.origins = permissions.origins.concat(this.pages.flatMap(page => page.match));
-    }
-
-    if (this.chibi) {
-      permissions.origins = permissions.origins.concat(this.chibi.flatMap(page => page.match));
-    }
-
-    const granted = await chrome.permissions.request(permissions);
-
+    const manifest = chrome.runtime.getManifest();
+    const allWebsites = manifest.host_permissions?.includes('*://*/*');
+    const origins = allWebsites
+      ? ['*://*/*']
+      : [
+          ...new Set([
+            ...this.required.match,
+            ...(this.required.api || []),
+            ...(this.player.match || []),
+            ...(this.pages || []).flatMap(page => page.match),
+            ...(this.chibi || []).flatMap(page => page.match),
+          ]),
+        ];
+    const permissions = (manifest.permissions || []).includes('scripting')
+      ? []
+      : ['scripting' as const];
+    // Required API permissions cannot be requested through Firefox's optional-permission API.
+    // Call request before awaiting anything to preserve the click's user activation.
+    const granted = await chrome.permissions.request({ permissions, origins });
     await this.init();
-
     return granted;
   }
 

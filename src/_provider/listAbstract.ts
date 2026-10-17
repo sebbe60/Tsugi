@@ -16,12 +16,17 @@ export interface listElement {
   url: string;
   score: number;
   watchedEp: number;
+  updatedAt?: number;
   readVol?: number;
   totalEp: number;
   totalVol?: number;
   status: number;
   startDate: string | null;
   finishDate: string | null;
+  /** Unrounded provider date, when its precision differs from finishDate. */
+  completionDate?: string | null;
+  releaseDate?: string | null;
+  nextAiring?: { episode: number; timestamp: number };
   rewatchCount: number;
   image: string;
   imageLarge?: string;

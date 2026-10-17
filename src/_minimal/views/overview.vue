@@ -118,12 +118,7 @@
           </Section>
           <HR />
         </template>
-        <template
-          v-if="
-            (metaRequest.data!.reviews && metaRequest.data!.reviews.length) ||
-            singleRequest.data?.getMalUrl()
-          "
-        >
+        <template v-if="metaRequest.data?.reviews?.length || singleRequest.data?.getMalUrl()">
           <Section>
             <OverviewReviews
               :reviews="metaRequest.data!.reviews"
@@ -133,10 +128,7 @@
           <HR />
         </template>
         <template
-          v-if="
-            (metaRequest.data!.recommendations && metaRequest.data!.recommendations.length) ||
-            singleRequest.data?.getMalUrl()
-          "
+          v-if="metaRequest.data?.recommendations?.length || singleRequest.data?.getMalUrl()"
         >
           <Section>
             <OverviewRecommendations
@@ -246,12 +238,9 @@ const metaRequest = createRequest(parameters, async param => {
 const singleRequest = createRequest(parameters, async param => {
   if (!param.value.url) return null;
   const single = reactive(getSingle(param.value.url));
-  await single.update().catch(e => {
-    con.error(e);
-    return single;
-  });
-
-  single.initProgress();
+  // Let createRequest handle unavailable accounts/data before reading the entry.
+  await single.update();
+  single.initProgress().catch(error => con.error(error));
 
   return single;
 });

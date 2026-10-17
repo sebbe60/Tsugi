@@ -3,6 +3,7 @@
   <MediaModal />
   <SettingsPermissionOverviewSmall v-if="isExtension()" />
   <NavBar v-if="rootHtml.getAttribute('mode') !== 'install'" />
+  <div id="tsugi-featured-header"></div>
   <div class="content">
     <router-view v-slot="{ Component, route }">
       <transition

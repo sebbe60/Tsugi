@@ -90,6 +90,7 @@ import { RezoScans } from './implementations/RezoScans/main';
 import { Sekai } from './implementations/Sekai/main';
 import { RageScans } from './implementations/RageScans/main';
 import { AniGo } from './implementations/AniGo/main';
+import { AniCult } from './implementations/AniCult/main';
 import { Kuudere } from './implementations/Kuudere/main';
 import { BigSolo } from './implementations/BigSolo/main';
 import { Plex } from './implementations/Plex/main';
@@ -211,6 +212,7 @@ export const pages: { [key: string]: PageInterface } = {
   Sekai,
   RageScans,
   AniGo,
+  AniCult,
   Kuudere,
   BigSolo,
   Plex,

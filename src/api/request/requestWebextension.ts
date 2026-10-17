@@ -5,7 +5,8 @@ export const requestApi: requestInterface = {
   async xhr(method, url) {
     if (typeof requestApi.sendMessage !== 'undefined') {
       return requestApi.sendMessage({ name: 'xhr', method, url }).then(xhr => {
-        if (xhr.status === 429) throw 'Rate limit Timeout';
+        if (xhr.status === 429 && !(typeof url === 'object' && url.retryRateLimit === false))
+          throw 'Rate limit Timeout';
         if (xhr.status === 0) throw xhr.responseText;
         return xhr;
       });

@@ -1,3 +1,4 @@
+import { qualifiesForTracking } from '../../utils/videoTracking';
 import { isIframeUrl } from '../../utils/manifest';
 import { hasMissingPermissions } from '../../utils/customDomains';
 import { PlayerSingleton } from '../../utils/player';
@@ -7,8 +8,13 @@ import { videoStrategyErrorElement } from '../messageElements';
 export class VideoStrategy implements TrackingModeInterface {
   trackingResolve: (() => void) | null = null;
 
+  private qualified = false;
+
+  private qualifiedAt = 0;
+
   async waitForTrackingAction() {
     await utils.wait(10 * 1000);
+    if (this.qualified && Date.now() - this.qualifiedAt < 2000) return Promise.resolve();
     return new Promise<void>(resolve => {
       this.trackingResolve = resolve;
     });
@@ -57,7 +63,11 @@ export class VideoStrategy implements TrackingModeInterface {
       .startTracking()
       .addListener('VideoStrategy', item => {
         const progress = item.current / item.duration;
-        if (this.trackingResolve && !item.paused && progress >= syncDuration) {
+        this.qualified = qualifiesForTracking(item, syncDuration);
+        if (this.qualified) this.qualifiedAt = Date.now();
+        if (api.type === 'webextension')
+          chrome.runtime.sendMessage({ name: 'trackingHealth', item }).catch(() => {});
+        if (this.trackingResolve && this.qualified) {
           this.trackingResolve();
           this.trackingResolve = null;
         }

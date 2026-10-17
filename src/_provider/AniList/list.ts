@@ -118,6 +118,7 @@ export class UserList extends ListAbstract {
         }
         mediaList (status: $status, type: $type, userName: $userName, sort: $sort) {
           status
+          updatedAt
           startedAt {
             year
             month
@@ -141,6 +142,8 @@ export class UserList extends ListAbstract {
             chapters
             volumes
             status
+            startDate { year month day }
+            nextAiringEpisode { episode airingAt }
             averageScore
             coverImage{
               large
@@ -217,7 +220,14 @@ export class UserList extends ListAbstract {
           url: el.media.siteUrl,
           score: Math.round(el.score / 10),
           watchedEp: el.progress,
+          updatedAt: el.updatedAt ? el.updatedAt * 1000 : undefined,
           totalEp: el.media.episodes,
+          nextAiring: el.media.nextAiringEpisode
+            ? {
+                episode: el.media.nextAiringEpisode.episode,
+                timestamp: el.media.nextAiringEpisode.airingAt * 1000,
+              }
+            : undefined,
           status: helper.translateList(el.status),
           startDate: helper.parseFuzzyDate(el.startedAt),
           finishDate: helper.parseFuzzyDate(el.completedAt),
@@ -226,7 +236,10 @@ export class UserList extends ListAbstract {
           imageLarge: helper.imgCheck(el.media.coverImage.extraLarge),
           imageBanner: helper.imgCheck(el.media.bannerImage),
           tags: el.notes,
-          airingState: el.anime_airing_status,
+          airingState: el.media.status,
+          releaseDate: el.media.startDate?.year
+            ? `${el.media.startDate.year}-${String(el.media.startDate.month || 0).padStart(2, '0')}-${String(el.media.startDate.day || 0).padStart(2, '0')}`
+            : null,
         });
       } else {
         tempData = await this.fn({
@@ -239,6 +252,7 @@ export class UserList extends ListAbstract {
           url: el.media.siteUrl,
           score: Math.round(el.score / 10),
           watchedEp: el.progress,
+          updatedAt: el.updatedAt ? el.updatedAt * 1000 : undefined,
           readVol: el.progressVolumes,
           totalEp: el.media.chapters,
           totalVol: el.media.volumes,
@@ -250,7 +264,10 @@ export class UserList extends ListAbstract {
           imageLarge: helper.imgCheck(el.media.coverImage.extraLarge),
           imageBanner: helper.imgCheck(el.media.bannerImage),
           tags: el.notes,
-          airingState: el.anime_airing_status,
+          airingState: el.media.status,
+          releaseDate: el.media.startDate?.year
+            ? `${el.media.startDate.year}-${String(el.media.startDate.month || 0).padStart(2, '0')}-${String(el.media.startDate.day || 0).padStart(2, '0')}`
+            : null,
         });
       }
 

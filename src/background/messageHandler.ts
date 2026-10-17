@@ -1,4 +1,15 @@
 import {
+  savePlayback,
+  prepareWatchSync,
+  completeWatchSync,
+  failWatchSync,
+  cancelWatchSync,
+  retryWatchSyncs,
+} from './watchRecovery';
+import { recordSitePlayer, recordSiteSync } from './siteHealth';
+import { appendWatchHistory } from './watchHistory';
+import { openTsugiTab } from './desktopTab';
+import {
   content,
   minimalWindow,
   responseMessageI,
@@ -47,6 +58,59 @@ function messageHandler(
       return videoTimeSetAction(message, sender, sendResponse);
     case 'minimalWindow':
       return minimalWindowAction(message, sender, sendResponse);
+    case 'trackingHealth': {
+      recordSitePlayer(sender, message.item)
+        .then(() => sendResponse({ saved: true }))
+        .catch(() => sendResponse({ saved: false }));
+      return true;
+    }
+    case 'watchHistory': {
+      appendWatchHistory(message.entry)
+        .then(async result => {
+          if (result.recorded)
+            await recordSiteSync(sender, message.entry).catch(error => con.error(error));
+          sendResponse(result);
+        })
+        .catch(error => {
+          con.error('Could not save watch history', error);
+          sendResponse({ recorded: false, error: true });
+        });
+      return true;
+    }
+    case 'playbackCheckpoint':
+    case 'prepareWatchSync':
+    case 'completeWatchSync':
+    case 'failWatchSync':
+    case 'cancelWatchSync':
+    case 'retryWatchSyncs': {
+      let action: Promise<unknown>;
+      switch (message.name) {
+        case 'playbackCheckpoint':
+          action = savePlayback(message.entry);
+          break;
+        case 'prepareWatchSync':
+          action = prepareWatchSync(message.intent);
+          break;
+        case 'completeWatchSync':
+          action = completeWatchSync(message.id);
+          break;
+        case 'failWatchSync':
+          action = failWatchSync(message.id);
+          break;
+        case 'cancelWatchSync':
+          action = cancelWatchSync(message.id);
+          break;
+        default:
+          action = retryWatchSyncs(true);
+      }
+      action
+        .then(result => sendResponse(result || { saved: true }))
+        .catch(error => {
+          con.error('Watch activity failed', error);
+          sendResponse({ error: true });
+        });
+      return true;
+    }
     case 'notification': {
       sendNotification(message.options);
       return undefined;
@@ -61,6 +125,7 @@ function messageHandler(
 }
 
 function videoTimeAction(message: videoTime, sender, sendResponse) {
+  recordSitePlayer(sender, message.item).catch(error => con.error(error));
   chrome.tabs.sendMessage(sender.tab.id, {
     action: 'videoTime',
     item: message.item,
@@ -94,51 +159,13 @@ function videoTimeSetAction(message: videoTimeSet, sender, sendResponse) {
   return undefined;
 }
 
-function minimalWindowAction(message: minimalWindow, sender, sendResponse) {
-  api.storage.get('windowId').then(winId => {
-    if (typeof winId === 'undefined') winId = 22;
-    if (chrome.windows && chrome.windows.update && chrome.windows.create) {
-      chrome.windows.update(winId, { focused: true }, function () {
-        if (chrome.runtime.lastError) {
-          const config: any = {
-            url: chrome.runtime.getURL('window.html'),
-            type: 'popup',
-          };
-
-          if (message.width) {
-            config.width = message.width;
-          }
-          if (message.height) {
-            config.height = message.height;
-          }
-          if (message.left) {
-            config.left = message.left;
-          }
-
-          chrome.windows.create(config, function (win) {
-            api.storage.set('windowId', win!.id);
-            sendResponse();
-          });
-        } else {
-          sendResponse();
-        }
-      });
-    } else {
-      chrome.tabs.update(winId, { active: true }, function () {
-        if (chrome.runtime.lastError) {
-          const config: any = {
-            url: chrome.runtime.getURL('window.html'),
-            active: true,
-          };
-
-          chrome.tabs.create(config, function (win) {
-            api.storage.set('windowId', win.id);
-            sendResponse();
-          });
-        }
-      });
-    }
-  });
+function minimalWindowAction(_message: minimalWindow, sender, sendResponse) {
+  openTsugiTab(sender?.tab)
+    .then(() => sendResponse({ opened: true }))
+    .catch(error => {
+      con.error('Could not open Tsugi', error);
+      sendResponse({ opened: false });
+    });
   return true;
 }
 
@@ -178,7 +205,10 @@ export function xhrAction(
 
   fetch(url, options)
     .then(async response => {
-      if (response.status === 429) {
+      if (
+        response.status === 429 &&
+        !(typeof message.url === 'object' && message.url.retryRateLimit === false)
+      ) {
         let limits: { timeout: number; tries: number; cutoff: number };
         if (environment === 'content') {
           limits = {

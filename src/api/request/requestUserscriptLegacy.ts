@@ -22,7 +22,10 @@ export const requestUserscriptLegacy: requestInterface = {
         data: null,
         onload(response) {
           console.log(response);
-          if (response.status === 429) {
+          if (
+            response.status === 429 &&
+            !(typeof url === 'object' && url.retryRateLimit === false)
+          ) {
             if (retry > 3 || utils.rateLimitExclude.test(response.finalUrl))
               throw 'Rate limit Timeout';
             con.error('RATE LIMIT');

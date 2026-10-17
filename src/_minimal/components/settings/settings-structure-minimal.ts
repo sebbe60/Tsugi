@@ -3,16 +3,6 @@ import SettingsGeneral from './settings-general.vue';
 
 export const minimal: ConfObj[] = [
   {
-    key: 'minimalWindow',
-    title: () => api.storage.lang('settings_miniMAL_window'),
-    system: 'webextension',
-    props: {
-      component: 'checkbox',
-      option: 'minimalWindow',
-    },
-    component: SettingsGeneral,
-  },
-  {
     key: 'autoCloseMinimal',
     title: () => api.storage.lang('settings_miniMAL_autoCloseMinimal'),
     system: 'userscript',
@@ -24,6 +14,7 @@ export const minimal: ConfObj[] = [
   },
   {
     key: 'posLeft',
+    system: 'userscript',
     title: () => api.storage.lang('settings_miniMAL_Display'),
     props: () => ({
       component: 'dropdown',
@@ -40,6 +31,7 @@ export const minimal: ConfObj[] = [
   },
   {
     key: 'miniMalHeight',
+    system: 'userscript',
     title: () => api.storage.lang('settings_miniMAL_Height'),
     props: {
       component: 'input',
@@ -54,6 +46,7 @@ export const minimal: ConfObj[] = [
   },
   {
     key: 'miniMalWidth',
+    system: 'userscript',
     title: () => api.storage.lang('settings_miniMAL_Width'),
     props: {
       component: 'input',

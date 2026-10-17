@@ -129,7 +129,7 @@ export class UserList extends ListAbstract {
           this.listType
         }.mappings,${this.listType}.mappings.item&fields[${
           this.listType
-        }]=slug,titles,canonicalTitle,averageRating,posterImage,coverImage,${
+        }]=slug,titles,canonicalTitle,averageRating,posterImage,coverImage,status,startDate,${
           this.listType === 'anime' ? 'episodeCount' : 'chapterCount,volumeCount'
         }`,
       )
@@ -198,7 +198,8 @@ export class UserList extends ListAbstract {
               ? el.attributes.coverImage.large
               : '',
           tags: list.attributes.notes,
-          airingState: el.anime_airing_status,
+          airingState: el.attributes.status,
+          releaseDate: el.attributes.startDate || null,
         });
       } else {
         tempData = await this.fn({
@@ -232,7 +233,8 @@ export class UserList extends ListAbstract {
               ? el.attributes.coverImage.large
               : '',
           tags: list.attributes.notes,
-          airingState: el.anime_airing_status,
+          airingState: el.attributes.status,
+          releaseDate: el.attributes.startDate || null,
         });
       }
 
