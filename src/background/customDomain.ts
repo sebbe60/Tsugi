@@ -30,7 +30,14 @@ function updateListener() {
   });
 }
 
-async function registerScripts() {
+let registration = Promise.resolve();
+function registerScripts() {
+  // Permission and settings events can overlap; finish one rebuild before clearing scripts again.
+  registration = registration.then(rebuildScripts, rebuildScripts);
+  return registration;
+}
+
+async function rebuildScripts() {
   if (typeof chrome.scripting === 'undefined') {
     con.error('Custom Domain is not possible');
     return;
@@ -54,7 +61,8 @@ async function registerScripts() {
 
   await chrome.scripting.unregisterContentScripts();
   if (domains) {
-    await Promise.all(domains.map(registerScript));
+    const scriptIds = new Set<string>();
+    await Promise.all(domains.map(domain => registerScript(domain, scriptIds)));
   }
 
   const scripts = await chrome.scripting.getRegisteredContentScripts();
@@ -62,7 +70,7 @@ async function registerScripts() {
   await reconnectTrackingTabs(scripts);
 }
 
-async function registerScript(domainConfig: domainType) {
+async function registerScript(domainConfig: domainType, scriptIds: Set<string>) {
   if (domainConfig.page === 'hostpermission') return;
   let fixDomain = domainConfig.domain;
 
@@ -96,6 +104,8 @@ async function registerScript(domainConfig: domainType) {
       scriptConfig.js.push('content/content-script.js');
     }
 
+    if (scriptIds.has(scriptConfig.id)) return;
+    scriptIds.add(scriptConfig.id);
     await chrome.scripting.registerContentScripts([scriptConfig]);
   } catch (e) {
     logger.error(`Could not add listener for ${fixDomain}`, e);

@@ -112,8 +112,8 @@
         "description": "General translation of manga for places like drop downs"
     },
     "Package_Description": {
-        "message": "Integrates MyAnimeList, AniList, Kitsu, Simkl, MangaBaka into various sites, with auto episode tracking.",
-        "description": "Description MALSync"
+        "message": "A MALSync fork with a full-tab anime library, automatic episode tracking, and watch history.",
+        "description": "Description shown in the Firefox Add-ons listing."
     },
     "UI_Status": {
         "message": "Status:",

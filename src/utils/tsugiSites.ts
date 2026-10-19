@@ -15,6 +15,7 @@ export const SITE_HEALTH_PREFIX = 'tsugi/site-health/';
 export const defaultSites: TsugiSite[] = [
   { id: 'reanime', name: 'Re:Anime', url: 'https://reanime.to/' },
   { id: 'allmanga', name: 'AllManga', url: 'https://allmanga.to/anime?tr=sub&cty=ALL' },
+  { id: 'mkissa', name: 'MKissa', url: 'https://mkissa.to/anime' },
   { id: 'anicult', name: 'AniCult', url: 'https://anicult.vercel.app/' },
 ];
 export function normalizeSiteUrl(value: string) {

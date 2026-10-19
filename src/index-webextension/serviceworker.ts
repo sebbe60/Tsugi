@@ -1,3 +1,4 @@
+import { upgradeTsugiSites } from '../background/upgradeSites';
 import { initWatchRecovery } from '../background/watchRecovery';
 import { openTsugiTab } from '../background/desktopTab';
 import { initDatabase } from '../background/database';
@@ -88,6 +89,7 @@ chrome.runtime.onInstalled.addListener(async function (details) {
   } else if (details.reason === 'update') {
     upgradewWizzards(details.previousVersion).finally(() => cleanupCustomDomains());
   }
+  await upgradeTsugiSites().catch(error => con.error('Site list upgrade failed', error));
   await chrome.alarms.clearAll();
   chrome.alarms.create('tsugiWatchRecovery', { periodInMinutes: 1 });
 });

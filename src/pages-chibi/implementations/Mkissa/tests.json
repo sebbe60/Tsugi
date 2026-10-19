@@ -3,6 +3,16 @@
   "url": "https://mkissa.to",
   "testCases": [
     {
+      "url": "https://mkissa.to/anime/ziLK4vCcRWFSHfrLs/p-1-sub",
+      "expected": {
+        "sync": true,
+        "title": "Fairy Tail x Rave",
+        "identifier": "ziLK4vCcRWFSHfrLs",
+        "overviewUrl": "https://mkissa.to/anime/ziLK4vCcRWFSHfrLs",
+        "episode": 1
+      }
+    },
+    {
       "url": "https://mkissa.to/manga/M36qvmykA5grCZsmE/chapter-0-sub",
       "expected": {
         "sync": true,

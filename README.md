@@ -4,7 +4,7 @@
 
 A personal Firefox extension built on [MALSync](https://github.com/MALSync/MALSync), with a full-tab anime library, watch tracking, episode history and discovery.
 
-Current version: **0.12.25**.
+Current version: **0.12.27**.
 
 - Watching, Upcoming, released Planned, History, Discover and My sites.
 - A configurable rotating header with unfinished-episode resume links and three layouts.
@@ -20,7 +20,7 @@ npm ci
 APP_TARGET=firefox npm run build:webextension
 ```
 
-In Firefox, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select `dist/webextension/manifest.json`. Temporary add-ons need loading again after Firefox restarts.
+For a temporary Firefox build, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select `dist/firefox/manifest.json`. Temporary add-ons need loading again after Firefox restarts. The AMO release is Mozilla-signed and remains installed across restarts.
 
 Run Tsugi's focused regression tests with `node --test test/*.test.cjs`.
 

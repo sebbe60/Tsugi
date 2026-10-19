@@ -141,6 +141,14 @@ const generateManifest = () => {
     browser_specific_settings: {
       gecko: {
         id: 'tsugi@local.invalid',
+        strict_min_version: '140.0',
+        data_collection_permissions: {
+          required: [
+            'authenticationInfo',
+            'websiteActivity',
+            'websiteContent',
+          ],
+        },
       },
     },
     background: appTarget === 'firefox' ?

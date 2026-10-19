@@ -8,6 +8,7 @@ export const Mkissa: PageInterface = {
   urls: {
     match: ['*://mkissa.to/*'],
     player: {
+      default: ['*://filelotion.fyi/*'],
       uni: ['*://*.uns.bio/*'],
       byse: ['*://*.q8y5z.com/*'],
     },
@@ -33,7 +34,7 @@ export const Mkissa: PageInterface = {
         .querySelector('title')
         .text()
         .replaceRegex('\\s*[^\\w\\s]\\s*MKissa\\s*$', '')
-        .replaceRegex('\\s+Ch\\.?\\s*[\\d.]+\\s*$', '')
+        .replaceRegex('\\s+(?:Ch|Ep)\\.?\\s*[\\d.]+\\s*$', '')
         .trim()
         .run();
     },
@@ -104,6 +105,7 @@ export const Mkissa: PageInterface = {
     },
     ready($c) {
       return $c
+        .detectURLChanges($c.trigger().run())
         .domReady()
         .detectChanges($c.querySelector('title').ifNotReturn().text().run(), $c.trigger().run())
         .trigger()
